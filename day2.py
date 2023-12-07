@@ -2,10 +2,6 @@ import IPython as ipy
 
 COLORS = ["red", "green", "blue"]
 
-def prod(nums):
-    def mult(n1, n2):
-        return n1*n2
-    return map(mult, nums, 1)
 
 def parse_game(line):
     gameid, record = line.split(": ", 1)

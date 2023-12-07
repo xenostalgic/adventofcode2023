@@ -1,3 +1,4 @@
+from typing import Any
 import numpy as np
 from functools import reduce
 from itertools import product
@@ -21,6 +22,11 @@ def isnum(s):
     except:
         return False
     
+def prod(nums):
+    base = 1
+    for n in nums:
+        base = base*n
+    return base
 
 def extract_nums(s):
     nums = []
@@ -43,3 +49,33 @@ def extract_nums(s):
             print("Error extracting numbers")
             ipy.embed()
     return nums
+
+NUM_MAP = {str(i): i for i in range(10)}
+NUM_MAP["."] = -1
+NUM_MAP["default"] = -2
+
+def to_array(lines: list[str], ch_map: dict[str, Any] = NUM_MAP) -> np.ndarray:
+    """Convert an input map to a numpy array.
+
+    Args:
+        lines (list[str]): A list of strings
+        ch_map (dict[str, Any], optional): An optional mapping of string values to ints. Defaults to NUM_MAP.
+
+    Returns:
+        np.ndarray: A numpy array representing the input numerically.
+    """
+    h = len(lines)
+    w = len(lines[0])
+    arr = np.zeros((h,w))
+    for i, line in enumerate(lines):
+        for j, ch in enumerate(line):
+            if ch in ch_map:
+                val = ch_map[ch]
+            else:
+                val = ch_map["default"]
+            arr[i,j] = val
+    return val
+
+
+
+
