@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from typing import Any
 import numpy as np
 from functools import reduce
@@ -77,5 +78,60 @@ def to_array(lines: list[str], ch_map: dict[str, Any] = NUM_MAP) -> np.ndarray:
     return val
 
 
+def gcd(a: int, b: int):
+    while b > 0:
+        a, b = b, a % b
+    return a
+
+
+def lcm(a: int, b: int):
+    return abs(a)*(abs(b)/gcd(a,b))
+
+
+def lcm_n(nums: list[int]):
+    return reduce(lcm, nums)
+
+
+### SEARCH
+
+def manhattan_distance(pos1, pos2):
+    return sum((d1-d2)**2 for d1,d2 in zip(pos1,pos2))
+
+def euclidian_distance(pos1, pos2):
+    return np.sqrt(sum((d1-d2)**2 for d1,d2 in zip(pos1,pos2)))
+
+@dataclass
+class Node:
+    pos: tuple[int,int]
+    cost: int
+    hist: list
+
+    def next(self):
+        for x in [1,0,-1]:
+            for y in [1,0,-1]:
+                npos = (self.pos[0]+y, self.pos[1]+x)
+                yield Node(npos, self.cost+1, self.hist + [self.pos])
+
+    def heuristic(self, tgt_nodes: list):
+        dists = [euclidian_distance(self.pos, tgt.pos) for tgt in tgt_nodes]
+        return min(dists)
+
+
+def bfs(start_node: Node, tgt_nodes: list[Node]):
+    pos_to_cost = {start_node.pos: start_node}
+    beam_history = []
+
+    for step_idx in range(10000):
+        t += 1
+        new_nodes = {} # map from position to full node
+        for node_pos, node in nodes.items():
+            for next in node.next():
+                new_nodes[next.pos] = next
+        beam_history.append(nodes)
+        nodes = new_nodes
+        if any([tgt.pos in nodes for tgt in tgt_nodes]):
+            break
+
+    return step_idx
 
 
