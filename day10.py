@@ -1,5 +1,8 @@
 from collections import defaultdict
+import itertools
+import re
 import sys
+import time
 import numpy as np
 
 import IPython as ipy
@@ -58,7 +61,7 @@ def find_loop(lines):
             chars[start] = "S"
             break
 
-    print("".join(lines))
+    # print("".join(lines))
 
     i = 0
     cur_loop = loop.copy()
@@ -79,12 +82,26 @@ def find_loop(lines):
         cur_loop = new_loop.difference(loop)
         loop = loop.union(new_loop)
         i += 1
-        print(f"\r{i}", end='')
+    #     print(f"\r{i}", end='')
 
-    print("")
+    # print("")
+
+    adj = []
+    sch = None
+    for step in STEPS:
+        si,sj = step
+        ti,tj = (start[0]+si,start[1]+sj)
+        if (ti,tj) in loop and chars[(ti,tj)] in STEPS[step]:
+            adj.append(step)
+    for ch in REV_STEPS:
+        if ch == "S":
+            continue
+        if all(a in REV_STEPS[ch] for a in adj):
+            sch = ch
+    chars[start] = sch
 
     loop = set(loop)
-    print_map(loop, chars)
+    # print_map(loop, chars)
 
     return loop, dists, chars, max(dists.values())
 
@@ -125,7 +142,6 @@ def zoom_map(loop, chars):
                     zloop.add((tzi,tzj))
                     zchars[(tzi,tzj)] = tzch
 
-    print_map(zloop, zchars)
     return zloop, zchars
 
 
@@ -152,9 +168,7 @@ def find_enclosed(loop):
         if len(nbeam.difference(cov)) == 0:
             break
         cov = cov.union(nbeam)
-        # print_map(cov,defaultdict(lambda: 'X'))
-        # print("")
-        print(f"\r{i}", end='')
+        # print(f"\r{i}", end='')
         i += 1
 
     return cov
@@ -182,14 +196,27 @@ def find_enclosed_zoom(loop, chars):
         combo_chars[p] = "O"
     for p in loop:
         combo_chars[p] = chars[p]
-    print_map(loop.union(cov), combo_chars)
+    # print_map(loop.union(cov), combo_chars)
 
     enc = (my*mx) - len(cov) - len(loop)
 
     return enc
 
 
-
+def find_enclosed_wind(loop, chars):
+    my = max([p1 for p1,p2 in loop])+2
+    mx = max([p2 for p1,p2 in loop])+2
+    enc = set()
+    for i,j in itertools.product(range(my),range(mx)):
+        if (i,j) in loop:
+            continue
+        ystr = [chars[(ci,j)] for ci in range(0,i) if (ci,j) in loop and chars[(ci,j)] in "FL-"]
+        if len(ystr) % 2 == 0:
+            # outside
+            pass
+        else:
+            enc.add((i,j))
+    return len(enc)
 
     
 if __name__=="__main__":
@@ -198,5 +225,11 @@ if __name__=="__main__":
     loop, dists, chars, max_dist = find_loop(input)
     print("Max dist:", max_dist)
     print("Part 2:")
+    s1 = time.monotonic()
     enc = find_enclosed_zoom(loop, chars)
-    print("Enclosed:", enc)
+    s2 = time.monotonic()
+    print(f"Enclosed (zoomed BFS ran in {s2-s1}):", enc)
+    s1 = time.monotonic()
+    enc2 = find_enclosed_wind(loop, chars)
+    s2 = time.monotonic()
+    print(f"Enclosed (parity checking ran in {s2-s1}):", enc2)
