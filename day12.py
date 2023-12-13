@@ -18,8 +18,7 @@ def parse_input(text):
     for row in text.splitlines():
         springs, counts = row.split()
         counts = list(map(int,re.findall(r"\d+", counts)))
-        unks = [(i,ch) for i,ch in enumerate(springs) if ch=="?"]
-        entries.append((list(springs),counts,unks))
+        entries.append((springs,counts))
     return entries
 
 def parse_stretches(text):
@@ -96,9 +95,14 @@ def get_variants(stretch, unks):
             svars.append("".join(ssv))
     return svars
 
-
-def fit_in_stretch(stretch, counts):
+fis_memo = {}
+def fits_in_stretch(orig_counts, orig_stretch, cidx, nidx):
+    if (cidx, nidx) in fis_memo:
+        return fis_memo[(cidx, nidx)]
+    stretch = orig_stretch[nidx:]
+    counts = orig_counts[cidx:]
     if len(stretch)==0:
+        fis_memo[(cidx, nidx)] = 0
         return 0
     ls = len(stretch)
     room = sum(counts)+len(counts)-1
@@ -106,66 +110,97 @@ def fit_in_stretch(stretch, counts):
     for i in range(ls):
         if ls-i < room:
             continue
-        nidx = i+counts[0]+1
-        if nidx == len(stretch) or stretch[nidx]=="?": # doesn't have to be damaged
+        noff = i+counts[0]+1
+        if noff == len(stretch) or stretch[noff]=="?": # doesn't have to be damaged
             if len(counts) == 1:
                 n += 1
             else:
-                n += fit_in_stretch(stretch[nidx:], counts[1:])
+                n += fits_in_stretch(orig_counts, orig_stretch, cidx+1, nidx+noff)
+    fis_memo[(cidx, nidx)] = n
     return n
 
 
-def possible_combs_stretches(entry):
-    stretches, counts, sunks = entry
-    while len(stretches[0]) < counts[0]:
-        stretches = stretches[1:]
-    while len(stretches[-1]) < counts[-1]:
-        stretches = stretches[:-1]
+fir_memo = {}
+def fits_in_row(orig_counts, orig_span, clo, chi, slo, shi, depth=0):
+    # if (clo, chi, slo, shi) in fir_memo:
+    #     return fir_memo[(clo, chi, slo, shi)]
+    span = orig_span[slo:shi]
+    counts = orig_counts[clo:chi]
 
-    sidx_to_cidxs = defaultdict(dict)
-    for sidx, s in enumerate(stretches):
-        for cidx, c in enumerate(counts):
-            if c > len(s) or "#"*(c+1) in s:
-                # current count can't fit, so can't continue with current or any more
+    # trim recursion
+    if len(span) == 0:
+        fir_memo[(clo, chi, slo, shi)] = 0
+        return 0
+    if len(counts) == 0:
+        return 1
+    if len([ch for ch in span if ch in "?#"]) < sum(counts):
+        return 0
+    if len(span) < sum(counts)+len(counts)-1:
+        return 0
+
+    if depth > 100:
+        ipy.embed()
+
+    if shi < len(orig_span) and orig_span[shi]=="#":
+        print("span ends right before a #")
+        ipy.embed()
+    if span.startswith(".") or span.endswith("."):
+        print("leading/trailing .")
+        ipy.embed()
+
+    if "." in span:
+        sidx = slo+span.index(".")
+        n = 0
+        for csplit in range(clo, chi+1):
+            # TODO: check off-by-ones
+            print("\t"*depth + f"Splitting span {span} on sidx {sidx}", flush=True)
+            print("\t"*depth + f"Calling lo split (span {slo}:{sidx}={orig_span[slo:sidx]}, counts {orig_counts[clo:csplit]}), depth {depth}", flush=True)
+            count_lo = fits_in_row(orig_counts, orig_span, clo, csplit, slo, sidx, depth=depth+1)
+            print("\t"*depth + f"Calling hi split (span {sidx}:{shi+1}={orig_span[sidx:shi+1]}), counts {orig_counts[csplit:chi]}), depth {depth}", flush=True)
+            count_hi = fits_in_row(orig_counts, orig_span, csplit, chi, sidx+1, shi, depth=depth+1)
+            print("\t"*depth + f"Got {count_lo}, {count_hi} ways --> total {count_lo*count_hi}", flush=True)
+            n += count_lo*count_hi
+    else:
+        # contiguous span of # and ?. treat as single-count case times ways for remainder
+        n = 0
+        c = counts[0]
+        print("\t"*depth + f"Got span {span} ({slo,shi} from orig span {orig_span}) with counts {counts}", flush=True)
+        for start_offset in range(len(span)):
+            end_offset = start_offset+c
+            if end_offset > len(span):
+                # not enough room for the first chunk
                 break
-            n = fit_in_stretch(s,counts[:cidx+1])
-            sidx_to_cidxs[sidx][(0,cidx+1)] = n
-        if sidx == 0:
-            continue
-        for sidx2 in range(sidx):
-            pcidxs = set(pcidx2 for (pcidx1,pcidx2) in sidx_to_cidxs[sidx2])
-            for pcidx in pcidxs:
-                for cidx in range(pcidx,len(counts)):
-                    c = counts[cidx]
-                    if c > len(s) or "#"*(c+1) in s:
-                        # current count can't fit
-                        break
-                    next = fit_in_stretch(s,counts[pcidx:cidx+1])
-                    if (pcidx,cidx+1) not in sidx_to_cidxs[sidx]:
-                        sidx_to_cidxs[sidx][(pcidx,cidx+1)] = 0
-                    sidx_to_cidxs[sidx][(pcidx,cidx+1)] += next
+            if "#" in span[:start_offset]:
+                # required damaged chars before the first chunk
+                break
+            if "." in span[start_offset:end_offset]:
+                # chunk can't be continuous
+                continue
+            if slo+end_offset < len(orig_span) and orig_span[slo+end_offset] == "#":
+                # next char is damaged, so first chunk can't end here
+                continue
+            if len(counts) == 1:
+                print("\t"*depth + f"Assign {c} to {slo+start_offset,slo+end_offset}; no remaining counts --> 1 way", flush=True)
+                n += 1
+            else:
+                print("\t"*depth + f"Assign {c} to {slo+start_offset,slo+end_offset}; recurse on span {orig_span[slo+end_offset+1:shi]} with counts {orig_counts[clo+1:chi]}", flush=True)
+                r = fits_in_row(orig_counts, orig_span, clo+1, chi, slo+end_offset+1, shi, depth=depth+1)
+                print("\t"*depth + f"Got {r} ways", flush=True)
+                n += r
 
-    # DP the sidx/cidx flow
-    tot = 0
-    cp_n = {}
-    for cidx1 in range(len(counts)):
-        for cidx2 in range(len(counts)):
-            # total ways to cover counts[cidx1:cdix2] in a single stretch
-            n = 0
-            for sidx in sidx_to_cidxs:
-                for (pc1,pc2),ways in sidx_to_cidxs[sidx].items():
-                    if pc2 != cidx:
-                        continue
-                    n += ways
-            cp_n[(cidx1,cidx2)] = n
-    # recurse???? idk
-            
+    print("\t"*depth + f"Span {orig_span[slo:shi]} fits counts {orig_counts[clo:chi]} {n} ways", flush=True)
+    fir_memo[(clo, chi, slo, shi)] = n
+    return n
 
 
-        
-
-
-
+def rec_fir(entry):
+    springs, counts = entry
+    springs = re.sub("\.+", ".", springs)
+    springs = springs.strip(".")
+    n = fits_in_row(counts, springs, 0, len(counts), 0, len(springs))
+    print(f"Row {springs} fits counts {counts} {n} ways\n")
+    # ipy.embed()
+    return n
 
 
 if __name__=="__main__":
@@ -176,11 +211,6 @@ if __name__=="__main__":
         text = load_file(filename, year=2023, day=12)
     
     print("Part 1:")
-    entries = parse_stretches(text)
-    # varcs = possible_combs(entries)
-    varcs = [possible_combs_stretches(entry) for entry in entries]
+    entries = parse_input(text)
+    varcs = [rec_fir(entry) for entry in entries]
     print(sum(varcs))
-
-    # print("\nPart 2:")
-
-    # print(res)
