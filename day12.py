@@ -6,13 +6,6 @@ from utils import load_file
 
 import IPython as ipy
 
-def pc_regex(entry):
-    springs, stretches, counts, sunks = entry
-    ipy.embed()
-    pattern = "[\.\?]+".join(f"[#|\?]{{{ci}}}" for ci in counts)
-    re.findall(pattern, springs, overlapped=True)
-
-
 def parse_input(text):
     entries = []
     for row in text.splitlines():
@@ -20,105 +13,6 @@ def parse_input(text):
         counts = list(map(int,re.findall(r"\d+", counts)))
         entries.append((springs,counts))
     return entries
-
-def parse_stretches(text):
-    entries = []
-    for row in text.splitlines():
-        springs, counts = row.split()
-        counts = list(map(int,re.findall(r"\d+", counts)))
-        stretches = re.findall(r"[\?|#]+", springs)
-        sunks = {}
-        for si,s in enumerate(stretches):
-            unks = [(i,ch) for i,ch in enumerate(springs) if ch=="?"]
-            sunks[(si,s)] = unks
-        entries.append((springs, stretches,counts,sunks))
-    return entries
-
-def possible_combs(entries):
-    var_counts = []
-    for eidx, entry in enumerate(entries):
-        schs, counts, unks = entry
-        entry_vars = []
-        for perm in itertools.permutations(unks):
-            for i in range(0,len(unks)+1):
-                svar = schs.copy()
-                for unk in perm[:i]:
-                    svar[unk[0]] = "#"
-                for unk in perm[i:]:
-                    svar[unk[0]] = "."
-                entry_vars.append("".join(svar))
-        en = 0
-        compats = []
-        for sstr in set(entry_vars):
-            # if sstr == "#.#.###":
-            #     print("Found tgt")
-            #     ipy.embed()
-            dmg_spans = re.findall(r"#+", sstr)
-            if len(dmg_spans) != len(counts):
-                continue
-            compat = True
-            for i,sp in enumerate(dmg_spans):
-                if i >= len(counts) or counts[i] != len(sp):
-                    compat = False
-                    break
-            if compat:
-                en += 1
-                compats.append(sstr)
-        var_counts.append(en)
-        print(f"Row {eidx} compatible variants:", en)
-
-        if en == 17:
-            ipy.embed()
-    return var_counts
-
-
-def compat_counts(vstr, counts):
-    dmg_spans = re.findall(r"#+", vstr)
-    if len(dmg_spans) != len(counts):
-        return False
-    for i,sp in enumerate(dmg_spans):
-        if i >= len(counts) or counts[i] != len(sp):
-            return False
-    return True
-
-
-def get_variants(stretch, unks):
-    svars = []
-    sl = list(stretch)
-    for perm in itertools.permutations(unks):
-        for i in range(len(unks)+1):
-            ssv = sl.copy()
-            for unk in perm[:i]:
-                ssv[unk[0]] = "#"
-            for unk in perm[i:]:
-                ssv[unk[0]] = "."
-            svars.append("".join(ssv))
-    return svars
-
-fis_memo = {}
-def fits_in_stretch(orig_counts, orig_stretch, cidx, nidx):
-    if (cidx, nidx) in fis_memo:
-        return fis_memo[(cidx, nidx)]
-    stretch = orig_stretch[nidx:]
-    counts = orig_counts[cidx:]
-    if len(stretch)==0:
-        fis_memo[(cidx, nidx)] = 0
-        return 0
-    ls = len(stretch)
-    room = sum(counts)+len(counts)-1
-    n = 0
-    for i in range(ls):
-        if ls-i < room:
-            continue
-        noff = i+counts[0]+1
-        if noff == len(stretch) or stretch[noff]=="?": # doesn't have to be damaged
-            if len(counts) == 1:
-                n += 1
-            else:
-                n += fits_in_stretch(orig_counts, orig_stretch, cidx+1, nidx+noff)
-    fis_memo[(cidx, nidx)] = n
-    return n
-
 
 fir_memo = {}
 def fits_in_row(orig_counts, orig_span, clo, chi, slo, shi, depth=0):
