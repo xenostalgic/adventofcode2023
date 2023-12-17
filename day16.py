@@ -100,9 +100,6 @@ def next(beam: Beam, grid: list[list[str]]) -> tuple[list[Beam], list[Beam]]:
         return [Beam(end_pos,"R"), Beam(end_pos,"L")], energized
     elif end_val == "\\":
         # reflect 1
-        if end_pos == (33,10):
-            print("debugging (33,10)")
-            ipy.embed()
         new_dir = R1_DIRS[beam.dir]
         return [Beam(end_pos,new_dir)], energized
     elif end_val == "/":
@@ -112,91 +109,51 @@ def next(beam: Beam, grid: list[list[str]]) -> tuple[list[Beam], list[Beam]]:
     else:
         raise ValueError("Incompatible direction and val:", end_pos, end_val, beam.dir)
         
-
-def sim_beam(grid, loop_cutoff: int = 0):
-    if grid[0][0] == "\\":
-        init_beam = Beam((0,0), "D")
-    elif grid[0][0] == ".":
-        init_beam = Beam((0,0), "R")
+def pivot_init(beam: Beam, grid):
+    bi,bj = beam.pos
+    gv = grid[bi][bj]
+    if gv == ".":
+        return [beam]
+    elif gv == "\\":
+        new_dir = R1_DIRS[beam.dir]
+        return [Beam(beam.pos, new_dir)]
+    elif gv == "/":
+        new_dir = R2_DIRS[beam.dir]
+        return [Beam(beam.pos, new_dir)]
+    elif gv == "|" and beam.dir in "RL":
+        return [Beam(beam.pos, "U"), Beam(beam.pos, "D")]
+    elif gv == "-" and beam.dir in "DU":
+        return [Beam(beam.pos, "R"), Beam(beam.pos, "L")]
     else:
-        raise ValueError("Unrecognized init state")
-    
-    checked_beams: list[Beam] = []
-    beams: list[Beam] = [init_beam]
+        return [beam]
+
+
+def sim_beam(grid, init_beam: Beam = Beam((0,0),"R"), loop_cutoff: int = 0):
+
+    checked_beams: Counter[Beam] = Counter()
+    beams: list[Beam] = pivot_init(init_beam, grid)
     energized: Counter[Beam] = Counter()
+    rays = defaultdict(list)
     step = 0
 
     while len(beams) > 0:
         cur_beam = beams.pop()
-        if cur_beam in energized and energized[cur_beam] > loop_cutoff:
+        if cur_beam in checked_beams and checked_beams[cur_beam] > loop_cutoff:
             # in a loop; cut it short
             continue
+
         next_beams, ray_en = next(cur_beam, grid)
+
         beams.extend(next_beams)
+        rays[cur_beam].append(ray_en)
+
         for b in ray_en:
             energized[b] += 1
         energized[cur_beam] += 1
-        checked_beams.append(cur_beam)
+        checked_beams[cur_beam] += 1
         step += len(energized)-1
 
-        # print(print_grid(energized, grid))
-        # ipy.embed()
-
     return energized
-
-
-def check_en(energized, grid):
-    p2d = defaultdict(str)
-    for b in energized:
-        p2d[b.pos] += DIRPS[b.dir]
-    y, x = len(grid), len(grid[0])
-    for (ti,tj) in p2d:
-        if grid[ti][tj] == ".":
-            continue
-        tv = grid[ti][tj]
-        for idx,(inpos,inval) in enumerate(zip(
-            [(ti-1,tj),(ti+1,tj),(ti,tj-1),(ti,tj+1)],
-            ["v", "^", ">", "<"],
-        )):
-            if not (inpos in p2d) or not (inval in p2d[inpos]):
-                continue
-
-            outpos, outval = [], []
-            if tv == "\\":
-                outpos.append([(ti,tj+1),(ti,tj-1),(ti+1,tj),(ti-1,tj)][idx])
-                outval.append([">", "<", "v", "^"][idx])
-            elif tv == "/":
-                outpos.append([(ti,tj-1),(ti,tj+1),(ti-1,tj),(ti+1,tj)][idx])
-                outval.append(["<", ">", "^", "v"][idx])
-            elif tv == "|":
-                if inval in "<>":
-                    outpos.extend([(ti-1,tj),(ti+1,tj)])
-                    outval.extend(["^", "v"])
-                elif inval == "v":
-                    outpos.extend([(ti+1,tj)])
-                    outval.extend(["v"])
-                elif inval == "^":
-                    outpos.extend([(ti-1,tj)])
-                    outval.extend(["^"])
-            elif tv == "-":
-                if inval in "v^":
-                    outpos.extend([(ti,tj-1),(ti,tj+1)])
-                    outval.extend(["<", ">"])
-                elif inval == "<":
-                    outpos.extend([(ti,tj-1)])
-                    outval.extend(["<"])
-                elif inval == ">":
-                    outpos.extend([(ti,tj+1)])
-                    outval.extend([">"])
-
-            for ov,op in zip(outval,outpos):
-                if not 0 <= op[0] < y:
-                    continue
-                if not 0 <= op[1] < x:
-                    continue
-                if not (ov in p2d[op]):
-                    ipy.embed()
-
         
 
 if __name__=="__main__":
@@ -214,6 +171,17 @@ if __name__=="__main__":
     print(print_grid(energized, grid, energized_only=True))
     print("Total energized tiles:", len(tiles))
 
-    ipy.embed()
-
     print("\nPart 2:")
+    en_counts = {}
+    y,x = len(grid), len(grid[0])
+    for i in tqdm(range(y)):
+        energr = sim_beam(grid, Beam((i,0),"R"))
+        en_counts[(i,0)] = len(set([b.pos for b in energr]))
+        energl = sim_beam(grid, Beam((i,x-1),"L"))
+        en_counts[(i,x-1)] = len(set([b.pos for b in energr]))
+    for j in tqdm(range(x)):
+        energd = sim_beam(grid, Beam((0,j),"D"))
+        en_counts[(0,j)] = len(set([b.pos for b in energd]))
+        energu = sim_beam(grid, Beam((y-1,j),"U"))
+        en_counts[(y-1,j)] = len(set([b.pos for b in energd]))
+    print("Max energized:", max(en_counts.values()))
