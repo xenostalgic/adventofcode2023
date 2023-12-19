@@ -105,7 +105,7 @@ def dig_big_outline(entries):
     vedges_by_x = defaultdict(list)
     hedges, vedges = [], []
     hprint = []
-    for eidx, (d,n) in tqdm(enumerate(entries), desc="Digging outline"):
+    for eidx, (d,n) in tqdm(enumerate(entries), total=len(entries), desc="Digging outline"):
         step = STEPS[d]
         if d in "RL":
             esum = 0
@@ -119,8 +119,6 @@ def dig_big_outline(entries):
             hprint.extend([(curp[0],j) for j in jedge])
         else:
             # store edges not covered by horizontal edges
-            prevd = entries[(eidx-1)%len(entries)][0]
-            nextd = entries[(eidx+1)%len(entries)][0]
             i1, i2 = (curp[0], curp[0]+(step[0]*n))
             vedges_by_x[curp[1]].append((min(i1,i2), max(i1,i2)))
             vedges.append(n+1)
@@ -132,16 +130,14 @@ def dig_big_outline(entries):
 def get_big_fill(outline_by_x: dict, vedges_by_x: dict, reference: set = None):
     fill_size = 0
     rems_size = 0
-    fill = set()
-    remf = set()
-    for j in outline_by_x:
+    for j in tqdm(outline_by_x, desc="processing column fills"):
         spans = sorted(outline_by_x[j])
         for p in range(0, len(spans), 2):
             i1, i2 = spans[p], spans[p+1]
-            overlaps = [sp for sp in vedges_by_x[j] if toverlap(tplus(sp,(0,1)),(i1,i2))]
-            overlap_sizes = [toverlap_size(sp, (i1,i2)) for sp in overlaps]
-            add_size = (i2 - i1)+1
-            rem_size = sum([o+1 for o in overlap_sizes])
+            overlaps = [vsp for vsp in vedges_by_x[j] if toverlap(vsp,(i1,i2))]
+            overlap_sizes = [toverlap_size(vsp, (i1,i2)) for vsp in overlaps]
+            add_size = (i2+1 - i1)
+            rem_size = sum([o for o in overlap_sizes])
             if (add_size - rem_size) < 0:
                 print("Removing more than all of a column??")
                 ipy.embed()
@@ -152,84 +148,15 @@ def get_big_fill(outline_by_x: dict, vedges_by_x: dict, reference: set = None):
                 print("Adding negative amount")
                 ipy.embed()
 
-            if p>0 and (spans[p-1], spans[p]) in vedges_by_x[j]:
-                rem_size += 1
-
             fill_size += add_size - rem_size
             rems_size += rem_size
 
-            # set-based solution, remove for full input
-            tf, rf = set(), set()
-            for i in range(i1, i2+1):
-                tf.add((i,j))
-                fill.add((i,j))
-            for sp in overlaps:
-                for i in range(sp[0], sp[1]+1):
-                    if (i,j) in tf:
-                        rf.add((i,j))
-                        fill.remove((i,j))
-                        remf.add((i,j))
-                    elif (i,j) in fill:
-                        print("Removing point not in added")
-                        rf.add((i,j))
-                        fill.remove((i,j))
-                        remf.add((i,j))
-            if len(tf) != add_size or len(rf) != rem_size:
-                print("Removal mismatch")
-                ipy.embed()
-            
-
-    if len(fill) != fill_size or len(remf) != rems_size:
-        print("Set/index mismatch")
-        ipy.embed()
-
     vtot = 0
-    vset = set()
     for j in vedges_by_x:
         jsum = sum(p[1]+1-p[0] for p in vedges_by_x[j])
         vtot += jsum
-        for sp in vedges_by_x[j]:
-            for i in range(sp[0], sp[1]):
-                vset.add((i,j))
-
-    if reference is not None:
-        ref_outline, ref_fill = reference
-        if len(ref_fill) != len(fill.union(vset)):
-            print("Off-by-one compared to reference")
-            ipy.embed()
 
     return fill_size, rems_size, vtot
-
-
-def print_big_fill(outline_by_x: dict, vedges_by_x: dict):
-    fill = set()
-    remf = set()
-    for j in outline_by_x:
-        spans = sorted(outline_by_x[j])
-        for p in range(0, len(spans), 2):
-            i1, i2 = spans[p], spans[p+1]
-            overlaps = [sp for sp in vedges_by_x[j] if toverlap(tplus(sp,(0,1)), (i1,i2))]
-            for i in range(i1, i2+1):
-                fill.add((i,j))
-            for sp in overlaps:
-                for i in range(sp[0], sp[1]+1):
-                    if (i,j) in fill:
-                        fill.remove((i,j))
-                        remf.add((i,j))
-    fill2 = set()
-    for j in vedges_by_x:
-        for (i1,i2) in vedges_by_x[j]:
-            for i in range(i1,i2+1):
-                fill2.add((i,j))
-
-    if len(fill.intersection(fill2)):
-        print("fills overlap")
-        ipy.embed()
-
-    print(f"fill size {len(fill)} with {len(remf)} removed edges plus {len(fill2)} from vertical edges:")
-    s = print_grid(fill, fill2, edge=1)
-    print(s.count("#") + s.count("@"), "total fill")
-    return len(fill), len(remf), len(fill2)
 
 
 if __name__=="__main__":
@@ -248,14 +175,6 @@ if __name__=="__main__":
 
     print("\nPart 2:")
     bentries = parse_colors(colors)
-
-    # with open("inputs/day18_practice4.txt", 'w') as f:
-    #     print("\n".join([f"{d} {n} #0000" for (d,n) in bentries]), file=f)
-
-    corners_by_x, vedges_by_x, hprint = dig_big_outline(entries)
+    corners_by_x, vedges_by_x, hprint = dig_big_outline(bentries)
     nfill, nrem, nvert = get_big_fill(corners_by_x, vedges_by_x, reference=(outline,fill))
-    snfill, snrem, snvert = print_big_fill(corners_by_x, vedges_by_x)
-    print(f"V1: Area fill: {nfill} (not including {nrem} removed vertical edges) + {nvert} total vertical edges = {nfill+nvert}")
-    print(f"V2: Area fill: {snfill} (not including {snrem} removed vertical edges) + {snvert} total vertical edges = {snfill+nvert}")
-
-    ipy.embed()
+    print(f"{nfill} (not including {nrem} removed vertical edges) + {nvert} total vertical edges = \nArea fill: {nfill+nvert}")
