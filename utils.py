@@ -204,3 +204,18 @@ def bfs(start_node: Node, tgt_nodes: list[Node]):
 
 def tplus(p1, p2):
     return tuple(p1[i]+p2[i] for i in range(len(p1)))
+
+
+def toverlap(p1, p2):
+    # check if two ordered ranges overlap
+    if p1[1] <= p2[0] or p2[1] <= p1[0]:
+        return False
+    return True
+
+def toverlap_size(p1, p2):
+    # check if two ordered ranges (not inclusive of the high index) overlap
+    if p1[1] <= p2[0] or p2[1] <= p1[0]:
+        return 0
+    union_size = max(p1[1], p2[1]) - min(p1[0], p2[0])
+    sum_size = (p1[1]-p1[0]) + (p2[1]-p2[0])
+    return sum_size - union_size
