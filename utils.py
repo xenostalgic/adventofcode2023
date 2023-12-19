@@ -207,15 +207,15 @@ def tplus(p1, p2):
 
 
 def toverlap(p1, p2):
-    # check if two ordered ranges overlap
-    if p1[1] <= p2[0] or p2[1] <= p1[0]:
+    # check if two ordered ranges (inclusive of the high index) overlap
+    if p1[1] < p2[0] or p2[1] < p1[0]:
         return False
     return True
 
 def toverlap_size(p1, p2):
-    # check if two ordered ranges (not inclusive of the high index) overlap
-    if p1[1] <= p2[0] or p2[1] <= p1[0]:
+    # get the overlap size of two ordered ranges (inclusive of the high index)
+    if p1[1] < p2[0] or p2[1] < p1[0]:
         return 0
-    union_size = max(p1[1], p2[1]) - min(p1[0], p2[0])
-    sum_size = (p1[1]-p1[0]) + (p2[1]-p2[0])
+    union_size = max(p1[1], p2[1])+1 - min(p1[0], p2[0])
+    sum_size = (p1[1]+1-p1[0]) + (p2[1]+1-p2[0])
     return sum_size - union_size
