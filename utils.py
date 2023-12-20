@@ -219,3 +219,7 @@ def toverlap_size(p1, p2):
     union_size = max(p1[1], p2[1])+1 - min(p1[0], p2[0])
     sum_size = (p1[1]+1-p1[0]) + (p2[1]+1-p2[0])
     return sum_size - union_size
+
+
+def in_range(val, range):
+    return range[0] < val < range[1]
